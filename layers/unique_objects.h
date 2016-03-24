@@ -71,6 +71,43 @@ struct VkUniqueObject {
     uint64_t actualObject;
 };
 
+class UniqueObjectPool {
+  private:
+    std::vector<const VkUniqueObject*> unique_object_pools;
+    VkUniqueObject* nextObj;
+    VkUniqueObject* lastObj;
+    bool alwaysUnique;
+    static const size_t INITIAL_SIZE = 1024;
+    static const size_t GROW_SIZE = 1024;
+  public:
+    UniqueObjectPool() : nextObj(nullptr), lastObj(nullptr), alwaysUnique(true) {
+        unique_object_pools.push_back(new VkUniqueObject[INITIAL_SIZE]);
+        overflow = reinterpret_cast<size_t>(unique_object_pools.back()) + (sizeof(VkUniqueObject) * INITIAL_SIZE);
+        nextObj = unique_object_pools.back();
+        lastObj = nextObj + INITIAL_SIZE;
+    }
+    ~UniqueObjectPool() {
+        for (auto uop : unique_object_pools) {
+            delete[] uop;
+        }
+    }
+    VkUniqueObject* allocate_unique_object()
+    {
+        // By default this just returns a handle from the pool
+        if (alwaysUnique) {
+            if (nextObj >= lastObj) {
+                // Grow pool
+                unique_object_pools.push_back(new VkUniqueObject[GROW_SIZE]);
+                nextObj = unique_object_pools.back();
+                lastObj = nextObj + GROW_SIZE;
+            }
+            VkUniqueObject* newObj = nextObj++;
+            return newObj;
+        } else { // we have leeway here to free pools or reallocate handles
+
+        }
+    }
+}
 // Handle CreateInstance
 static void createInstanceRegisterExtensions(const VkInstanceCreateInfo *pCreateInfo, VkInstance instance) {
     uint32_t i;
