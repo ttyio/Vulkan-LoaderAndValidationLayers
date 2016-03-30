@@ -9185,6 +9185,17 @@ VkBool32 ValidateDependencies(const layer_data *my_data, const VkRenderPassBegin
             for (auto overlapping_attachment : overlapping_attachments[attachment]) {
                 output_attachment_to_subpass[overlapping_attachment].push_back(i);
             }
+
+            for (uint32_t j = 0; j < subpass.colorAttachmentCount; ++j) {
+                uint32_t colorAtt = subpass.pColorAttachments[j].attachment;
+                if (colorAtt == attachment) {
+                    skip_call |=
+                        log_msg(my_data->report_data, VK_DEBUG_REPORT_ERROR_BIT_EXT, (VkDebugReportObjectTypeEXT)0,
+                                0, __LINE__, DRAWSTATE_INVALID_RENDERPASS, "DS",
+                                "Cannot use same attachment (%u) as both color and depth output in same subpass (%u).",
+                                attachment, i);
+                }
+            }
         }
     }
     // If there is a dependency needed make sure one exists
