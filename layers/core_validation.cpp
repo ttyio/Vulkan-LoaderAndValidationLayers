@@ -9431,6 +9431,13 @@ VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateRenderPass(VkDevice devic
             const VkSubpassDescription &subpass = pCreateInfo->pSubpasses[i];
             for (uint32_t j = 0; j < subpass.colorAttachmentCount; ++j) {
                 uint32_t attachment = subpass.pColorAttachments[j].attachment;
+                if (attachment >= pCreateInfo->attachmentCount) {
+                    skip_call |= log_msg(dev_data->report_data, VK_DEBUG_REPORT_ERROR_BIT_EXT, (VkDebugReportObjectTypeEXT)0, 0,
+                                         __LINE__, DRAWSTATE_INVALID_RENDERPASS, "DS",
+                                         "Color attachment %d cannot be greater than the total number of attachments %d.",
+                                         attachment, pCreateInfo->attachmentCount);
+                    continue;
+                }
                 if (attachment_first_read.count(attachment))
                     continue;
                 attachment_first_read.insert(std::make_pair(attachment, false));
@@ -9438,6 +9445,13 @@ VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateRenderPass(VkDevice devic
             }
             if (subpass.pDepthStencilAttachment && subpass.pDepthStencilAttachment->attachment != VK_ATTACHMENT_UNUSED) {
                 uint32_t attachment = subpass.pDepthStencilAttachment->attachment;
+                if (attachment >= pCreateInfo->attachmentCount) {
+                    skip_call |= log_msg(dev_data->report_data, VK_DEBUG_REPORT_ERROR_BIT_EXT, (VkDebugReportObjectTypeEXT)0, 0,
+                                         __LINE__, DRAWSTATE_INVALID_RENDERPASS, "DS",
+                                         "Depth stencil attachment %d cannot be greater than the total number of attachments %d.",
+                                         attachment, pCreateInfo->attachmentCount);
+                    continue;
+                }
                 if (attachment_first_read.count(attachment))
                     continue;
                 attachment_first_read.insert(std::make_pair(attachment, false));
@@ -9445,6 +9459,13 @@ VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateRenderPass(VkDevice devic
             }
             for (uint32_t j = 0; j < subpass.inputAttachmentCount; ++j) {
                 uint32_t attachment = subpass.pInputAttachments[j].attachment;
+                if (attachment >= pCreateInfo->attachmentCount) {
+                    skip_call |= log_msg(dev_data->report_data, VK_DEBUG_REPORT_ERROR_BIT_EXT, (VkDebugReportObjectTypeEXT)0, 0,
+                                         __LINE__, DRAWSTATE_INVALID_RENDERPASS, "DS",
+                                         "Input attachment %d cannot be greater than the total number of attachments %d.",
+                                         attachment, pCreateInfo->attachmentCount);
+                    continue;
+                }
                 if (attachment_first_read.count(attachment))
                     continue;
                 attachment_first_read.insert(std::make_pair(attachment, true));
