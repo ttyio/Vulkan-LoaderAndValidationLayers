@@ -4863,7 +4863,17 @@ static void decrementResources(layer_data *my_data, VkCommandBuffer cmdBuffer) {
     for (auto semaphore : pCB->semaphores) {
         auto semaphoreNode = my_data->semaphoreMap.find(semaphore);
         if (semaphoreNode != my_data->semaphoreMap.end()) {
-            semaphoreNode->second.in_use.fetch_sub(1);
+            // Each CB in semaphore's list may have reference to this semaphore
+            for (auto cb : semaphoreNode->second.linkedCmdBuffers) {
+                GLOBAL_CB_NODE *refCB = getCBNode(my_data, cb);
+                for (auto semaphoreRef : refCB->semaphores) {
+                    auto semaphoreRefNode = my_data->semaphoreMap.find(semaphoreRef);
+                    if (semaphoreRefNode != my_data->semaphoreMap.end()) {
+                        semaphoreRefNode->second.in_use.fetch_sub(1);
+                    }
+                }
+            }
+            semaphoreNode->second.linkedCmdBuffers.clear();
         }
     }
     for (auto event : pCB->events) {
@@ -5190,9 +5200,9 @@ vkQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo *pSubmits,
         vector<VkSemaphore> semaphoreList;
         for (uint32_t i = 0; i < submit->waitSemaphoreCount; ++i) {
             const VkSemaphore &semaphore = submit->pWaitSemaphores[i];
+            semaphoreList.push_back(semaphore);
             if (dev_data->semaphoreMap[semaphore].signaled) {
                 dev_data->semaphoreMap[semaphore].signaled = 0;
-                dev_data->semaphoreMap[semaphore].in_use.fetch_sub(1);
             } else {
                 skipCall |= log_msg(dev_data->report_data, VK_DEBUG_REPORT_ERROR_BIT_EXT,
                                     VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT, 0, __LINE__, DRAWSTATE_QUEUE_FORWARD_PROGRESS,
@@ -5223,8 +5233,12 @@ vkQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo *pSubmits,
         for (uint32_t i = 0; i < submit->commandBufferCount; i++) {
             skipCall |= ValidateCmdBufImageLayouts(submit->pCommandBuffers[i]);
             pCBNode = getCBNode(dev_data, submit->pCommandBuffers[i]);
-            pCBNode->semaphores = semaphoreList;
-            pCBNode->submitCount++; // increment submit count
+            // For each signal/wait semaphore, add ref to this cmdbuffer's list and vice-versa
+            for (auto semaphore : semaphoreList) {
+                pCBNode->semaphores.push_back(semaphore);
+                dev_data->semaphoreMap[semaphore].linkedCmdBuffers.push_back(submit->pCommandBuffers[i]);
+            }
+            pCBNode->submitCount++;
             skipCall |= validatePrimaryCommandBufferState(dev_data, pCBNode);
         }
     }

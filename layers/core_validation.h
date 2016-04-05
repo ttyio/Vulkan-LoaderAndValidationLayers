@@ -607,6 +607,8 @@ class SEMAPHORE_NODE : public BASE_NODE {
     uint32_t signaled;
     SemaphoreState state;
     VkQueue queue;
+    // Track command buffers linked by semaphores
+    vector<VkCommandBuffer> linkedCmdBuffers;
 };
 
 class EVENT_NODE : public BASE_NODE {
