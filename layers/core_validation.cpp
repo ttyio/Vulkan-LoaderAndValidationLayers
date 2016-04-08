@@ -5420,7 +5420,19 @@ static inline void removeInFlightCmdBuffer(layer_data *dev_data, VkCommandBuffer
             if ((q != queue) &&
                 (dev_data->queueMap[q].inFlightCmdBuffers.find(cmd_buffer) != dev_data->queueMap[q].inFlightCmdBuffers.end())) {
                 dev_data->globalInFlightCmdBuffers.insert(cmd_buffer);
-                break;
+                return;
+            }
+        }
+    }
+    // If cmdbuffer was removed from inFlight set, remove linked command buffers also
+    GLOBAL_CB_NODE *pCb = dev_data->commandBufferMap[cmd_buffer];
+    if (pCb) {
+        for (auto semaphore : pCb->semaphores) {
+            auto semaphoreNode = dev_data->semaphoreMap.find(semaphore);
+            if (semaphoreNode != dev_data->semaphoreMap.end()) {
+                for (auto cb : semaphoreNode->second.linkedCmdBuffers) {
+                    dev_data->globalInFlightCmdBuffers.erase(cb);
+                }
             }
         }
     }
