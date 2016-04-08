@@ -31,15 +31,16 @@
 // Allow use of STL min and max functions in Windows
 #define NOMINMAX
 
+#include <algorithm>
+#include <assert.h>
 #include <inttypes.h>
+#include <memory>
+#include <mutex>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
-#include <vector>
-#include <algorithm>
 #include <unordered_map>
-#include <memory>
+#include <vector>
 using namespace std;
 
 #include "vk_loader_platform.h"
@@ -54,8 +55,6 @@ using namespace std;
 #include "vk_layer_extension_utils.h"
 #include "vk_layer_utils.h"
 #include "vk_layer_logging.h"
-
-using namespace std;
 
 struct layer_data {
     debug_report_data *report_data;
@@ -73,17 +72,10 @@ struct layer_data {
 };
 
 static unordered_map<void *, layer_data *> layer_data_map;
-static int globalLockInitialized = 0;
-static loader_platform_thread_mutex globalLock;
+static std::mutex mutex;
 
 static void init_image(layer_data *my_data, const VkAllocationCallbacks *pAllocator) {
-
     layer_debug_actions(my_data->report_data, my_data->logging_callback, pAllocator, "lunarg_image");
-
-    if (!globalLockInitialized) {
-        loader_platform_thread_create_mutex(&globalLock);
-        globalLockInitialized = 1;
-    }
 }
 
 VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL
@@ -357,18 +349,18 @@ vkCreateImage(VkDevice device, const VkImageCreateInfo *pCreateInfo, const VkAll
         result = device_data->device_dispatch_table->CreateImage(device, pCreateInfo, pAllocator, pImage);
     }
     if (result == VK_SUCCESS) {
-        loader_platform_thread_lock_mutex(&globalLock);
+        std::lock_guard<std::mutex> lock(::mutex);
         device_data->imageMap[*pImage] = IMAGE_STATE(pCreateInfo);
-        loader_platform_thread_unlock_mutex(&globalLock);
     }
     return result;
 }
 
 VK_LAYER_EXPORT VKAPI_ATTR void VKAPI_CALL vkDestroyImage(VkDevice device, VkImage image, const VkAllocationCallbacks *pAllocator) {
     layer_data *device_data = get_my_data_ptr(get_dispatch_key(device), layer_data_map);
-    loader_platform_thread_lock_mutex(&globalLock);
-    device_data->imageMap.erase(image);
-    loader_platform_thread_unlock_mutex(&globalLock);
+    {
+        std::lock_guard<std::mutex> lock(::mutex);
+        device_data->imageMap.erase(image);
+    }
     device_data->device_dispatch_table->DestroyImage(device, image, pAllocator);
 }
 
